@@ -1,5 +1,4 @@
 import request from '@/utils/request'
-import qs from 'qs'
 
 export function getDepts(params) {
   return request({
@@ -10,12 +9,11 @@ export function getDepts(params) {
 }
 
 export function getDeptSuperior(ids) {
-  const params = {
-    ids: ids
-  }
+  const data = ids.length || ids.length === 0 ? ids : Array.of(ids)
   return request({
-    url: 'api/dept/superior?' + qs.stringify(params, { indices: false }),
-    method: 'get'
+    url: 'api/dept/superior',
+    method: 'post',
+    data
   })
 }
 

@@ -5,17 +5,7 @@
       <div v-if="crud.props.searchToggle">
         <!-- 搜索 -->
         <el-input v-model="query.blurry" size="small" clearable placeholder="输入名称或者描述搜索" style="width: 200px;" class="filter-item" @keyup.enter.native="crud.toQuery" />
-        <el-date-picker
-          v-model="query.createTime"
-          :default-time="['00:00:00','23:59:59']"
-          type="daterange"
-          range-separator=":"
-          size="small"
-          class="date-item"
-          value-format="yyyy-MM-dd HH:mm:ss"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
-        />
+        <date-range-picker v-model="query.createTime" class="date-item" />
         <rrOperation />
       </div>
       <crudOperation :permission="permission" />
@@ -119,6 +109,7 @@
             accordion
             show-checkbox
             node-key="id"
+            @check="menuChange"
           />
         </el-card>
       </el-col>
@@ -129,7 +120,7 @@
 <script>
 import crudRoles from '@/api/system/role'
 import { getDepts, getDeptSuperior } from '@/api/system/dept'
-import { getMenusTree, getMenuSuperior } from '@/api/system/menu'
+import { getMenusTree } from '@/api/system/menu'
 import CRUD, { presenter, header, form, crud } from '@crud/crud'
 import rrOperation from '@crud/RR.operation'
 import crudOperation from '@crud/CRUD.operation'
@@ -138,11 +129,12 @@ import pagination from '@crud/Pagination'
 import Treeselect from '@riophae/vue-treeselect'
 import '@riophae/vue-treeselect/dist/vue-treeselect.css'
 import { LOAD_CHILDREN_OPTIONS } from '@riophae/vue-treeselect'
+import DateRangePicker from '@/components/DateRangePicker'
 
 const defaultForm = { id: null, name: null, depts: [], description: null, dataScope: '全部', level: 3 }
 export default {
   name: 'Role',
-  components: { Treeselect, pagination, crudOperation, rrOperation, udOperation },
+  components: { Treeselect, pagination, crudOperation, rrOperation, udOperation, DateRangePicker },
   cruds() {
     return CRUD({ title: '角色', url: 'api/roles', sort: 'level,asc', crudMethod: { ...crudRoles }})
   },
@@ -194,7 +186,7 @@ export default {
         }
       }
       const depts = []
-      form.depts.forEach(function(dept, index) {
+      form.depts.forEach(function(dept) {
         depts.push(dept.id)
       })
       form.depts = depts
@@ -209,7 +201,7 @@ export default {
         return false
       } else if (crud.form.dataScope === '自定义') {
         const depts = []
-        crud.form.depts.forEach(function(data, index) {
+        crud.form.depts.forEach(function(data) {
           const dept = { id: data }
           depts.push(dept)
         })
@@ -227,7 +219,7 @@ export default {
     },
     afterErrorMethod(crud) {
       const depts = []
-      crud.form.depts.forEach(function(dept, index) {
+      crud.form.depts.forEach(function(dept) {
         depts.push(dept.id)
       })
       crud.form.depts = depts
@@ -240,33 +232,33 @@ export default {
         this.$refs.menu.setCheckedKeys([])
         // 保存当前的角色id
         this.currentId = val.id
-        this.showButton = this.level <= val.level
-        // 初始化
+        // 初始化默认选中的key
         this.menuIds = []
-        // 菜单数据需要特殊处理
-        val.menus.forEach(function(data, index) {
+        val.menus.forEach(function(data) {
           _this.menuIds.push(data.id)
         })
-        getMenuSuperior(this.menuIds).then(res => {
-          this.menus = res
-        })
+        this.showButton = true
+      }
+    },
+    menuChange(menu) {
+      // 判断是否在 menuIds 中，如果存在则删除，否则添加
+      const index = this.menuIds.indexOf(menu.id)
+      if (index !== -1) {
+        this.menuIds.splice(index, 1)
+      } else {
+        this.menuIds.push(menu.id)
       }
     },
     // 保存菜单
     saveMenu() {
       this.menuLoading = true
       const role = { id: this.currentId, menus: [] }
-      // 得到半选的父节点数据，保存起来
-      this.$refs.menu.getHalfCheckedNodes().forEach(function(data, index) {
-        const menu = { id: data.id }
-        role.menus.push(menu)
-      })
       // 得到已选中的 key 值
-      this.$refs.menu.getCheckedKeys().forEach(function(data, index) {
-        const menu = { id: data }
+      this.menuIds.forEach(function(id) {
+        const menu = { id: id }
         role.menus.push(menu)
       })
-      crudRoles.editMenu(role).then(res => {
+      crudRoles.editMenu(role).then(() => {
         this.crud.notify('保存成功', CRUD.NOTIFICATION_TYPE.SUCCESS)
         this.menuLoading = false
         this.update()
@@ -304,12 +296,19 @@ export default {
         ids.push(dept.id)
       })
       getDeptSuperior(ids).then(res => {
-        this.depts = res.content.map(function(obj) {
-          if (obj.hasChildren && !obj.children) {
-            obj.children = null
-          }
-          return obj
-        })
+        const date = res.content
+        this.buildDepts(date)
+        this.depts = date
+      })
+    },
+    buildDepts(depts) {
+      depts.forEach(data => {
+        if (data.children) {
+          this.buildDepts(data.children)
+        }
+        if (data.hasChildren && !data.children) {
+          data.children = null
+        }
       })
     },
     // 获取弹窗内部门数据
@@ -334,7 +333,7 @@ export default {
         this.getDepts()
       }
     },
-    checkboxT(row, rowIndex) {
+    checkboxT(row) {
       return row.level >= this.level
     }
   }
@@ -349,13 +348,13 @@ export default {
 </style>
 
 <style rel="stylesheet/scss" lang="scss" scoped>
-  /deep/ .el-input-number .el-input__inner {
+ ::v-deep .el-input-number .el-input__inner {
     text-align: left;
   }
-  /deep/ .vue-treeselect__multi-value{
+ ::v-deep .vue-treeselect__multi-value{
     margin-bottom: 0;
   }
-  /deep/ .vue-treeselect__multi-value-item{
+ ::v-deep .vue-treeselect__multi-value-item{
     border: 0;
     padding: 0;
   }

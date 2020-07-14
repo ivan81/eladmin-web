@@ -38,17 +38,7 @@
               class="filter-item"
               @keyup.enter.native="crud.toQuery"
             />
-            <el-date-picker
-              v-model="query.createTime"
-              :default-time="['00:00:00','23:59:59']"
-              type="daterange"
-              range-separator=":"
-              size="small"
-              class="date-item"
-              value-format="yyyy-MM-dd HH:mm:ss"
-              start-placeholder="开始日期"
-              end-placeholder="结束日期"
-            />
+            <date-range-picker v-model="query.createTime" class="date-item" />
             <el-select
               v-model="query.enabled"
               clearable
@@ -212,6 +202,7 @@ import rrOperation from '@crud/RR.operation'
 import crudOperation from '@crud/CRUD.operation'
 import udOperation from '@crud/UD.operation'
 import pagination from '@crud/Pagination'
+import DateRangePicker from '@/components/DateRangePicker'
 import Treeselect from '@riophae/vue-treeselect'
 import { mapGetters } from 'vuex'
 import '@riophae/vue-treeselect/dist/vue-treeselect.css'
@@ -221,7 +212,7 @@ let userJobs = []
 const defaultForm = { id: null, username: null, nickName: null, gender: '男', email: null, enabled: 'false', roles: [], jobs: [], dept: { id: null }, phone: null }
 export default {
   name: 'User',
-  components: { Treeselect, crudOperation, rrOperation, udOperation, pagination },
+  components: { Treeselect, crudOperation, rrOperation, udOperation, pagination, DateRangePicker },
   cruds() {
     return CRUD({ title: '用户', url: 'api/users', crudMethod: { ...crudUser }})
   },
@@ -418,12 +409,19 @@ export default {
     },
     getSupDepts(deptId) {
       getDeptSuperior(deptId).then(res => {
-        this.depts = res.content.map(function(obj) {
-          if (obj.hasChildren && !obj.children) {
-            obj.children = null
-          }
-          return obj
-        })
+        const date = res.content
+        this.buildDepts(date)
+        this.depts = date
+      })
+    },
+    buildDepts(depts) {
+      depts.forEach(data => {
+        if (data.children) {
+          this.buildDepts(data.children)
+        }
+        if (data.hasChildren && !data.children) {
+          data.children = null
+        }
       })
     },
     // 获取弹窗内部门数据
@@ -493,7 +491,7 @@ export default {
 </script>
 
 <style rel="stylesheet/scss" lang="scss" scoped>
-  /deep/ .vue-treeselect__control, /deep/ .vue-treeselect__placeholder, /deep/ .vue-treeselect__single-value {
+ ::v-deep .vue-treeselect__control,::v-deep .vue-treeselect__placeholder,::v-deep .vue-treeselect__single-value {
     height: 30px;
     line-height: 30px;
   }
